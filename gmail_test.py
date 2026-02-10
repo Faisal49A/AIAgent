@@ -1,7 +1,9 @@
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import base64
-
+from dotenv import load_dotenv
+import os
+from openai import OpenAI
 
 # Google API can only read emails not 'send' or 'delete'
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
@@ -40,10 +42,21 @@ for msg in messages:
 
     body = base64.urlsafe_b64decode(body.encode('ASCII')).decode('utf-8', errors='ignore')
 
-    print("From:", sender)
-    print("Subject:", subject)
-    print("Body:", body[:200])
-    print("-" * 50)
 
+    load_dotenv()
+    os.getenv("OPENAI_API_KEY")
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+    ai_prompt = f"""
 
+    Write a reply to this email:
+
+    {body}
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": ai_prompt}]
+    )
+
+    print(response.choices[0].message.content)
