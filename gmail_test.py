@@ -29,31 +29,37 @@ messages = results.get('messages', [])
 for msg in messages:
     msg_data = service.users().messages().get(userId='me', id=msg['id']).execute()
 
+    # Separates the headers from the whole email
     payload = msg_data['payload']
     headers = payload['headers']
 
+    # Gets subject and sender from the header section
     subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "")
     sender = next((h['value'] for h in headers if h['name'] == 'From'), "")
 
+    # Some emails have multiple parts, this grabs the first one.
+    # If it doesnt have multiple parts then just grabs the body directly
     if 'parts' in payload:
         body = payload['parts'][0]['body'].get('data', '')
     else:
         body = payload['body'].get('data', '')
 
+    # Converts encoded gmail text into bytes then uses base 64 to decode into readable text
     body = base64.urlsafe_b64decode(body.encode('ASCII')).decode('utf-8', errors='ignore')
 
-
+    # Allows python to access your API key
+    # Creates connection to OpenAI using my AIP key
     load_dotenv()
-    os.getenv("OPENAI_API_KEY")
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+    # Instruction to send to AI
     ai_prompt = f"""
 
     Write a reply to this email:
 
     {body}
     """
-
+    # AI processes instruction and reads email content, then generates a reply
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": ai_prompt}]
