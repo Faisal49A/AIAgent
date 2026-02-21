@@ -5,6 +5,28 @@ from dotenv import load_dotenv
 import os
 from openai import OpenAI
 
+def clean_email(text):
+    lines = text.split("\n")
+    clean_lines = []
+
+    for line in lines:
+        line = line.strip()
+
+        if not line:
+            continue
+        if line.startswith(">"):
+            continue
+        if "unsubscribe" in line.lower():
+            continue
+        if "sent from my" in line.lower():
+            continue
+        if "wrote:" in line.lower():
+            break  # stop at old thread
+
+        clean_lines.append(line)
+
+    return "\n".join(clean_lines)
+
 # Google API can only read emails not 'send' or 'delete'
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
@@ -46,6 +68,11 @@ for msg in messages:
 
     # Converts encoded gmail text into bytes then uses base 64 to decode into readable text
     body = base64.urlsafe_b64decode(body.encode('ASCII')).decode('utf-8', errors='ignore')
+    cleaned_body = clean_email(body)
+
+    print("\nCLEANED EMAIL:")
+    print(cleaned_body)
+    print("\n-----------------\n")
 
     # Allows python to access your API key
     # Creates connection to OpenAI using my AIP key
@@ -54,10 +81,12 @@ for msg in messages:
 
     # Instruction to send to AI
     ai_prompt = f"""
+    You are an assistant that writes polite, clear, professional email replies.
 
+    
     Write a reply to this email:
 
-    {body}
+    {cleaned_body}
     """
     # AI processes instruction and reads email content, then generates a reply
     response = client.chat.completions.create(
