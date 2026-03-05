@@ -82,7 +82,6 @@ for msg in messages:
     # Instruction to send to AI
     ai_prompt = f"""
     You are an assistant that writes polite, clear, professional email replies.
-
     
     Write a reply to this email:
 
