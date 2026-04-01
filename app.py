@@ -1,4 +1,7 @@
 from flask import Flask
+import os
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 import html
 
 app = Flask(__name__)
@@ -37,11 +40,22 @@ def generate_email_reply():
     SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
     # loads the fle I downloaded from Google defined by the permissions in SCOPES
-    flow = InstalledAppFlow.from_client_secrets_file(
-        'client_secret.json', SCOPES)
+    creds = None
 
-    # Opens up a local web browser, allows you to log in and Google sends back a token (creds)
-    creds = flow.run_local_server(port=0)
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                "client_secret.json", SCOPES
+            )
+            creds = flow.run_local_server(port=0)
+
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
 
     # Creates a Python object that is able to talk to gmail for you
     service = build('gmail', 'v1', credentials=creds)
@@ -99,9 +113,19 @@ def generate_email_reply():
             messages=[{"role": "user", "content": ai_prompt}]
         )
 
-        return response.choices[0].message.content
+        return {
+            "sender": sender,
+            "subject": subject,
+            "email_body": cleaned_body,
+            "reply": response.choices[0].message.content
+        }
 
-    return "No email reply generated."
+    return {
+        "sender": "Unknown",
+        "subject": "No subject",
+        "email_body": "No email found.",
+        "reply": "No reply generated."
+    }
 
 @app.route("/")
 def home():
@@ -115,14 +139,29 @@ def home():
 @app.route("/generate")
 def generate():
     print("DEBUG: /generate route hit")
-    reply = generate_email_reply()
+
+    result = generate_email_reply()
+
+    safe_sender = html.escape(result["sender"])
+    safe_subject = html.escape(result["subject"])
+    safe_email_body = html.escape(result["email_body"])
+    safe_reply = html.escape(result["reply"])
 
     return f"""
-    <h1>AI Email Reply</h1>
-    <h3>Generated Reply:</h3>
+    <h1>AI Email Assistant</h1>
 
-    <pre style="white-space: pre-wrap; font-family: Arial;">
-    {reply}
+    <h2>Latest Email</h2>
+    <p><strong>From:</strong> {safe_sender}</p>
+    <p><strong>Subject:</strong> {safe_subject}</p>
+
+    <h3>Email Content:</h3>
+    <pre style="white-space: pre-wrap; font-family: Arial; background-color: #f4f4f4; padding: 10px;">
+{safe_email_body}
+    </pre>
+
+    <h2>AI Generated Reply</h2>
+    <pre style="white-space: pre-wrap; font-family: Arial; background-color: #e8f0fe; padding: 10px;">
+{safe_reply}
     </pre>
 
     <br>
