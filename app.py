@@ -161,11 +161,23 @@ def generate():
 
     <h2>AI Generated Reply</h2>
     <form>
-        <textarea rows="12" cols="100" style="width: 100%; max-width: 900px;">{safe_reply}</textarea>
+        <textarea id="replyBox" rows="12" cols="100" style="width: 100%; max-width: 900px;">{safe_reply}</textarea>
     </form>
+     <br><br>
+    <button onclick="copyReply()">Copy Reply</button>
+    <a href="/generate"><button type="button">Regenerate Reply</button></a>
 
-    <br>
+    <br><br>
     <a href="/">Go Back</a>
+
+    <script>
+    function copyReply() {{
+        const replyBox = document.getElementById("replyBox");
+        replyBox.select();
+        replyBox.setSelectionRange(0, 99999);
+        document.execCommand("copy");
+        alert("Reply copied to clipboard!");
+    }}
     """
 
 if __name__ == "__main__":
