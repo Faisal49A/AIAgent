@@ -160,9 +160,9 @@ def generate():
     </pre>
 
     <h2>AI Generated Reply</h2>
-    <pre style="white-space: pre-wrap; font-family: Arial; background-color: #e8f0fe; padding: 10px;">
-{safe_reply}
-    </pre>
+    <form>
+        <textarea rows="12" cols="100" style="width: 100%; max-width: 900px;">{safe_reply}</textarea>
+    </form>
 
     <br>
     <a href="/">Go Back</a>
