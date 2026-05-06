@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request, render_template
 import os
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -6,7 +6,7 @@ import html
 
 app = Flask(__name__)
 
-def generate_email_reply():
+def generate_email_reply(tone):
     from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
     import base64
@@ -103,7 +103,7 @@ def generate_email_reply():
         ai_prompt = f"""
         You are an assistant that writes polite, clear, professional email replies.
 
-        Write a reply to this email:
+        Write a {tone} reply to this email:
 
         {cleaned_body}
         """
@@ -129,56 +129,28 @@ def generate_email_reply():
 
 @app.route("/")
 def home():
-    return """
-    <h1>AI Email Assistant</h1>
-    <form action="/generate">
-        <button type="submit">Generate Reply for Latest Email</button>
-    </form>
-    """
+    return render_template("home.html")
 
 @app.route("/generate")
 def generate():
-    print("DEBUG: /generate route hit")
 
-    result = generate_email_reply()
+    tone = request.args.get("tone", "professional")
 
-    safe_sender = html.escape(result["sender"])
-    safe_subject = html.escape(result["subject"])
-    safe_email_body = html.escape(result["email_body"])
-    safe_reply = html.escape(result["reply"])
+    result = generate_email_reply(tone)
 
-    return f"""
-    <h1>AI Email Assistant</h1>
+    sender = result["sender"]
+    subject = result["subject"]
+    email_body = result["email_body"]
+    reply = result["reply"]
 
-    <h2>Latest Email</h2>
-    <p><strong>From:</strong> {safe_sender}</p>
-    <p><strong>Subject:</strong> {safe_subject}</p>
-
-    <h3>Email Content:</h3>
-    <pre style="white-space: pre-wrap; font-family: Arial; background-color: #f4f4f4; padding: 10px;">
-{safe_email_body}
-    </pre>
-
-    <h2>AI Generated Reply</h2>
-    <form>
-        <textarea id="replyBox" rows="12" cols="100" style="width: 100%; max-width: 900px;">{safe_reply}</textarea>
-    </form>
-     <br><br>
-    <button onclick="copyReply()">Copy Reply</button>
-    <a href="/generate"><button type="button">Regenerate Reply</button></a>
-
-    <br><br>
-    <a href="/">Go Back</a>
-
-    <script>
-    function copyReply() {{
-        const replyBox = document.getElementById("replyBox");
-        replyBox.select();
-        replyBox.setSelectionRange(0, 99999);
-        document.execCommand("copy");
-        alert("Reply copied to clipboard!");
-    }}
-    """
+    return render_template(
+        "result.html",
+        sender=sender,
+        subject=subject,
+        email_body=email_body,
+        reply=reply,
+        tone=tone
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)

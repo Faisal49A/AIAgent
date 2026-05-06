@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Email Reply</title>
+</head>
+<body>
+
+<h1>AI Email Assistant</h1>
+
+<h2>Latest Email</h2>
+    <p><strong>From:</strong> {{ sender }} </p>
+    <p><strong>Subject:</strong> {{ subject }} </p>
+    <p><strong>Tone:</strong> {{ tone }} </p>
+
+    <h3>Email Content:</h3>
+    <pre style="white-space: pre-wrap; font-family: Arial; background-color: #f4f4f4; padding: 10px;">
+    {{email_body}}
+    </pre>
+
+    <h2>AI Generated Reply</h2>
+    <textarea id="replyBox" rows="12" cols="100" style="width: 100%; max-width: 900px;">{{ reply }}</textarea>
+
+    <br><br>
+    <button onclick="copyReply()">Copy Reply</button>
+    <a href="/generate?tone={{ tone }}"><button type="button">Regenerate</button></a>
+
+    <br><br>
+    <a href="/">Go Back</a>
+
+  <script>
+  function copyReply() {
+        const replyBox = document.getElementById("replyBox");
+        replyBox.select();
+        replyBox.setSelectionRange(0, 99999);
+        document.execCommand("copy");
+        alert("Reply copied to clipboard!");
+  }
+  </script>
+
+</body>
+</html>
