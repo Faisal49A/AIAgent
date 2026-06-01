@@ -1,10 +1,13 @@
 from flask import Flask, request, render_template, jsonify
 import os
+import json
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
+from flask_cors import CORS
 import html
 
 app = Flask(__name__)
+CORS(app)
 
 def generate_email_reply(message_id, tone):
     from google_auth_oauthlib.flow import InstalledAppFlow
@@ -85,10 +88,6 @@ def generate_email_reply(message_id, tone):
     body = base64.urlsafe_b64decode(body.encode('ASCII')).decode('utf-8', errors='ignore')
     cleaned_body = clean_email(body)
 
-    print("\nCLEANED EMAIL:")
-    print(cleaned_body)
-    print("\n-----------------\n")
-
         # Allows python to access your API key
         # Creates connection to OpenAI using my AIP key
     load_dotenv()
@@ -96,10 +95,22 @@ def generate_email_reply(message_id, tone):
 
     # Instruction to send to AI
     ai_prompt = f"""
-    You are an assistant that writes polite, clear, professional email replies.
+    You are a general AI email assistant.
 
-    Write a {tone} reply to this email:
+    Your job is to write a natural reply to the email below.
 
+    Rules:
+    - Reply as the recipient of the email, not as a recruiter unless the email clearly requires that.
+    - Do not assume the user is hiring, recruiting, interviewing, or reviewing applications.
+    - Match the purpose of the email.
+    - If the email is a question, answer it politely.
+    - If the email asks for confirmation, confirm appropriately.
+    - If the email is informational and does not need a response, say that no reply is needed.
+    - Keep the reply {tone}.
+    - Do not invent facts, dates, availability, prices, or decisions.
+    - Write only the email reply, with no explanation.
+
+    Email:
     {cleaned_body}
     """
     # AI processes instruction and reads email content, then generates a reply
@@ -188,6 +199,97 @@ def api_generate(message_id):
     tone = request.args.get("tone", "professional")
     result = generate_email_reply(message_id, tone)
     return jsonify(result)
+
+@app.route("/api/summary/<message_id>")
+def api_summary(message_id):
+
+    from googleapiclient.discovery import build
+    import base64
+    from dotenv import load_dotenv
+    from openai import OpenAI
+
+    SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+    creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+
+    service = build('gmail', 'v1', credentials=creds)
+
+    msg_data = service.users().messages().get(
+        userId='me',
+        id=message_id
+    ).execute()
+
+    payload = msg_data['payload']
+
+    if 'parts' in payload:
+        body = payload['parts'][0]['body'].get('data', '')
+    else:
+        body = payload['body'].get('data', '')
+
+    body = base64.urlsafe_b64decode(
+        body.encode('ASCII')
+    ).decode('utf-8', errors='ignore')
+
+    load_dotenv()
+
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY")
+    )
+
+    prompt = f"""
+    Analyze this email for a general email user.
+
+    Do not assume this is a recruiting or candidate email unless the content clearly says so.
+
+    Return raw JSON only.
+    Do not use markdown.
+    Do not wrap the JSON in code fences.
+    Do not include explanations.
+
+    Format:
+    {{
+      "summary": "short summary of the email",
+      "category": "Work, Personal, Finance, Job, Support, Newsletter, Shopping, Travel, or Other",
+      "action": "suggested next action",
+      "urgency": "Low, Medium, or High"
+    }}
+
+    Email:
+    {body}
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    analysis_text = response.choices[0].message.content
+    analysis_text = analysis_text.strip()
+
+    if analysis_text.startswith("```json"):
+        analysis_text = analysis_text.replace("```json", "", 1)
+
+    if analysis_text.startswith("```"):
+        analysis_text = analysis_text.replace("```", "", 1)
+
+    if analysis_text.endswith("```"):
+        analysis_text = analysis_text[:-3]
+
+    analysis_text = analysis_text.strip()
+
+    try:
+        analysis_json = json.loads(analysis_text)
+    except json.JSONDecodeError:
+        analysis_json = {
+            "summary": analysis_text,
+            "category": "Unknown",
+            "action": "Review manually",
+            "urgency": "Medium"
+        }
+
+    return jsonify(analysis_json)
 
 if __name__ == "__main__":
     app.run(debug=True)
