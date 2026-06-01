@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template, jsonify
 import os
 import json
+import base64
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from flask_cors import CORS
@@ -126,6 +127,46 @@ def generate_email_reply(message_id, tone):
         "reply": response.choices[0].message.content
         }
 
+def categorize_email(subject, body):
+
+    text = f"{subject} {body}".lower()
+
+    if "invoice" in text or "payment" in text:
+        return "Finance"
+
+    if "unsubscribe" in text or "newsletter" in text:
+        return "Newsletter"
+
+    if "interview" in text or "application" in text:
+        return "Job"
+
+    if "support" in text or "ticket" in text:
+        return "Support"
+
+    if "meeting" in text or "project" in text:
+        return "Work"
+
+    return "Personal"
+
+
+def detect_urgency(subject, body):
+
+    text = f"{subject} {body}".lower()
+
+    urgent_words = [
+        "urgent",
+        "asap",
+        "important",
+        "deadline",
+        "immediately"
+    ]
+
+    for word in urgent_words:
+        if word in text:
+            return "High"
+
+    return "Normal"
+
 def get_recent_emails():
     from googleapiclient.discovery import build
 
@@ -149,6 +190,19 @@ def get_recent_emails():
         ).execute()
 
         headers = msg_data['payload']['headers']
+        payload = msg_data['payload']
+
+        if 'parts' in payload:
+            body = payload['parts'][0]['body'].get('data', '')
+        else:
+            body = payload['body'].get('data', '')
+
+        try:
+            body = base64.urlsafe_b64decode(
+                body.encode('ASCII')
+            ).decode('utf-8', errors='ignore')
+        except:
+            body = ""
 
         subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "No Subject")
         sender = next((h['value'] for h in headers if h['name'] == 'From'), "Unknown Sender")
@@ -156,7 +210,9 @@ def get_recent_emails():
         email_list.append({
             "id": msg['id'],
             "subject": subject,
-            "sender": sender
+            "sender": sender,
+            "category": categorize_email(subject, body),
+            "urgency": detect_urgency(subject, body)
         })
 
     return email_list
